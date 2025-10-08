@@ -12,7 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
     <style>
         :root {
@@ -219,37 +219,31 @@
 
     <script>
         // =================================================================
-        // BAGIAN FIREBASE - INI ADALAH KONFIGURASI MILIKMU
+        // PERUBAHAN 2: Konfigurasi Firebase baru Anda
         // =================================================================
-
         const firebaseConfig = {
-          apiKey: "AIzaSyCwSp1sTg044ASReGFJQKWmuPhAJMW-5y0",
-          authDomain: "hbd-qodry.firebaseapp.com",
-          databaseURL: "https://hbd-qodry.firebaseio.com", 
-          projectId: "hbd-qodry",
-          storageBucket: "hbd-qodry.appspot.com",
-          messagingSenderId: "32958594825",
-          appId: "1:32958594825:web:5f57415a970d20d218ddd8",
-          measurementId: "G-CMYC3HXV39"
+            apiKey: "AIzaSyBV84LBkoQMOfN9rF3nWNdL3KE26Si0Fhs",
+            authDomain: "hbdqodrybar.firebaseapp.com",
+            projectId: "hbdqodrybar",
+            storageBucket: "hbdqodrybar.firebasestorage.app",
+            messagingSenderId: "201990993595",
+            appId: "1:201990993595:web:369214946776c2ab885b9e",
+            measurementId: "G-MNWCC6ZR40"
         };
-
-        // Inisialisasi Firebase menggunakan library compat
         firebase.initializeApp(firebaseConfig);
 
-        // Referensi ke "folder" ucapan di database
-        const database = firebase.database();
-        const wishesRef = database.ref('wishes');
+        // PERUBAHAN 3: Menggunakan Firestore
+        const db = firebase.firestore();
+        const wishesRef = db.collection('wishes');
 
         // =================================================================
         // SCRIPT UTAMA HALAMAN
         // =================================================================
-
         const wishesContainer = document.getElementById('wishes-container');
         const wishCountSpan = document.getElementById('wishCount');
         const customAlert = document.getElementById('customAlert');
         const customAlertMessage = document.getElementById('customAlertMessage');
 
-        // Fungsi untuk menampilkan satu kartu ucapan dari data
         function renderWish(name, message, timestamp) {
             const wishCard = document.createElement('div');
             wishCard.classList.add('wish-card');
@@ -259,11 +253,9 @@
 
             wishCard.innerHTML = `<strong>Dari: ${cleanName}</strong><p>${cleanMessage}</p><div class="timestamp">${timestamp}</div>`;
             wishesContainer.appendChild(wishCard);
-            
-            wishCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
 
-        // FUNGSI UNTUK MENGIRIM UCAPAN (VERSI FIREBASE)
+        // PERUBAHAN 4: Fungsi kirim ucapan versi Firestore
         function submitWish() {
             let senderName = document.getElementById('senderName').value.trim();
             const message = document.getElementById('customMessage').value.trim();
@@ -275,41 +267,47 @@
             if (senderName === '') {
                 senderName = 'Seseorang';
             }
-
-            const now = new Date();
-            const timestamp = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) + ' - ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-            wishesRef.push({
+            
+            wishesRef.add({
                 name: senderName,
                 message: message,
-                timestamp: timestamp
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
                 document.getElementById('senderName').value = '';
                 document.getElementById('customMessage').value = '';
+                const lastWishCard = wishesContainer.lastElementChild;
+                if (lastWishCard) {
+                    lastWishCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
             }).catch((error) => {
                 console.error("Gagal mengirim ucapan: ", error);
                 showCustomAlert('Gagal mengirim ucapan, coba lagi.');
             });
         }
         
-        // =================================================================
-        // LISTENER REAL-TIME FIREBASE (BAGIAN AJAIBNYA)
-        // =================================================================
-
-        wishesRef.on('child_added', (snapshot) => {
-            const wish = snapshot.val();
-            renderWish(wish.name, wish.message, wish.timestamp);
-        });
-
-        wishesRef.on('value', (snapshot) => {
-            const totalWishes = snapshot.numChildren();
+        // PERUBAHAN 5: Listener real-time versi Firestore
+        wishesRef.orderBy('timestamp', 'asc').onSnapshot((snapshot) => {
+            wishesContainer.innerHTML = ''; // Kosongkan kontainer sebelum render ulang
+            const totalWishes = snapshot.size;
             wishCountSpan.textContent = totalWishes;
+            
+            snapshot.forEach((doc) => {
+                const wish = doc.data();
+                let formattedTimestamp = 'Baru saja';
+                
+                // Konversi timestamp Firestore ke format tanggal yang bisa dibaca
+                if (wish.timestamp && wish.timestamp.toDate) {
+                    const date = wish.timestamp.toDate();
+                    formattedTimestamp = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) + ' - ' + date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                }
+                
+                renderWish(wish.name, wish.message, formattedTimestamp);
+            });
         });
 
         // =================================================================
         // FUNGSI BAWAAN (TIDAK BERUBAH)
         // =================================================================
-        
         function showCustomAlert(message) {
             customAlertMessage.textContent = message;
             customAlert.style.display = 'flex';
